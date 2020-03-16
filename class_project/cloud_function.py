@@ -30,3 +30,4 @@ def echo_pubsub(event,context):
     recipient = payload['To']
     fromUser = payload['From']
     set_config(projectId,deviceRegistryLocation,deviceRegistryId,recipient,message)
+set_config

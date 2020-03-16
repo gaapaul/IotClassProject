@@ -118,8 +118,8 @@ class Device(object):
         """Callback when the device receives a message on a subscription."""
         payload = message.payload.decode('utf-8')
         print(payload)
-        print('Received message \'{}\' on topic \'{}\' with Qos {}'.format(
-            base64.b64decode(message.payload), message.topic, str(message.qos)))
+        #print('Received message \'{}\' on topic \'{}\' with Qos {}'.format(
+            #base64.b64decode(message.payload), message.topic, str(message.qos)))
 
         # The device will receive its latest config when it subscribes to the
         # config topic. If there is no configuration for the device, the device
