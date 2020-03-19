@@ -1,6 +1,4 @@
 Google Cloud Project for ENGR 453
-Guide to creating a device with pusub subscription with google 
-https://console.cloud.google.com/cloudshell/open?git_repo=https://github.com/GoogleCloudPlatform/python-docs-samples&page=editor&open_in_editor=iot/api-client/README.md
 
 cd iot/api-client/end_to_end_example
 virtualenv env && source env/bin/activate
