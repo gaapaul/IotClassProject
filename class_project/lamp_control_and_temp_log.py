@@ -58,8 +58,6 @@ from gcloud import storage
 from oauth2client.service_account import ServiceAccountCredentials
 import argparse
 import numpy as np
-from keras.models import load_model
-from sklearn.preprocessing import MinMaxScaler
 
 def upload_blob(bucket_name, blob_text, destination_blob_name):
     """Uploads a file to the bucket."""
@@ -105,21 +103,24 @@ class Device(object):
     """Represents the state of a single device."""
 
     def __init__(self):
-        self.temperature = 0
-        self.fan_on = False
         self.connected = False
         self.lamp_on = False
-    def log_air_temp(self,index,air,time):
-        self.temps[0,index,0] = air
-        self.temps[0,index,1] = time
+        self.stop_time = 3600
+        self.reset=False
     def start_temp(self):
         self.lamp_on = True
         print("Lamp On")
     def stop_temp(self):
         self.lamp_on = False
-        print("Lamp On")
+        print("Lamp Off")
+    def reset_false(self):
+        self.reset = False
+    def read_reset(self):
+        return self.reset
     def read_lamp(self):
         return self.lamp_on
+    def read_stop_time(self):
+        return self.stop_time
     def wait_for_connection(self, timeout):
         """Wait for the device to become connected."""
         total_time = 0
@@ -167,6 +168,17 @@ class Device(object):
         if(payload["Type"] == 1): #its config update
             if(payload["Data"] == "Start Temp"):
                 self.lamp_on = True
+        if(payload["Type"] == 1):
+            if(payload["Data"].find("Stop Time") != -1):
+                stop_time_str = payload["Data"].replace("Stop Time","")
+                self.stop_time = float(stop_time_str)
+                print("Set Stop Time: "+str(self.stop_time))
+        if(payload["Type"] == 1):
+            if(payload["Data"] == "Reset"):
+                self.lamp_on = False
+                self.stop_time = 3600
+                self.reset = True
+                print("Reset")
 
         # The config is passed in the payload of the message. In this example,
         # the server sends a serialized JSON string.
@@ -229,11 +241,6 @@ def dir_path(string):
 
 def main():
     args = parse_command_line_args()
-    with open('turnkey-banner-265721-da1327341af6.json', 'r') as json_file:
-        data = json.load(json_file)
-    credentials = ServiceAccountCredentials.from_json_keyfile_dict(
-        data
-    )
     data_log = 'run0.txt'
     read_log = 'data_2025100.csv' 
     # Create the MQTT client and connect to Cloud IoT.
@@ -280,28 +287,14 @@ def main():
         lines = [line.rstrip() for line in read_file]
     print("Waiting To Start")
     # Update and publish temperature readings at a rate of one per second.
+    start_time = time.time()
+
     while(True):
-        # In an actual device, this would read the device's sensors. Here,
-        # you update the temperature based on whether the fan is on.
-        # Report the device's temperature to the server by serializing it
-        # as a JSON string.
-        #payload = json.dumps({'MessageSent': usrInputMsg, 'To' : usrInputAddr, 'From' : args.device_id})
-        # print('Publishing payload', payload)
-        # client.publish(mqtt_telemetry_topic, payload, qos=1)
-        # Send events every second.
-        # time.sleep(1)
-        #  val_data = np.zeros((360,1,2))
-        print("Send Message:")
-        usrInputMsg=input()
-        print("To?:")
-        usrInputAddr=input()
-        # Report the device's temperature to the server by serializing it
-        # as a JSON string.
-        payload = json.dumps({'Type': 1, 'Data' : usrInputMsg, 'To' : usrInputAddr, 'Time' : 0})
-        print('Publishing payload', payload)
-        client.publish(mqtt_telemetry_topic, payload, qos=1)
-        time.sleep(1)
-        if(True): #Got config update to turn lamp on.
+        last_temp = -300
+
+        time.sleep(.1)
+        if(device.read_lamp()): #Got config update to turn lamp on.
+            start_predict_flag = 0
             start_time = time.time()
             done_payload = payload = json.dumps({"Type": 1, "Data" : "On", "Time" : str(time.time() - start_time), "To" : "test-dev2"})
             client.publish(mqtt_telemetry_topic, done_payload, qos=1)
@@ -312,9 +305,10 @@ def main():
                 payload_data = {}
                 index_data = []
                 for i in range(0,len(lines)-10,10):
+                    if(device.read_reset()):
+                        break
                     line = lines[i] 
                     #time.sleep(.01)
-                    print("Time: "+str(time.time() - start_time))
                     #input_string = '{"Type": 0, "Data" :'+str(line)+', "Time" : '+str(time.time() - start_time)+'}'
                     #print(input_string)
                     line_data = line[:25]
@@ -322,28 +316,47 @@ def main():
                     #print(payload_data)
                     index_data += [index]
                     payload_data_new = {index : {"Temp" : float(line_data_split[1]), "Time" : float(line_data_split[0])}, "Index" : index_data}
-                    payload_data.update(payload_data_new )
-                    if(index % 6 == 0):
+                    
+                    if(last_temp == float(line_data_split[1]) and start_predict_flag == 0): #temp is flat
+                        start_predict_flag = 1
+                        lamp_off = json.dumps({"Type": 1, "Data" :"Lamp is off", "Time" : str(time.time() - start_time)[:4], "To" : "test-dev2"})
+                        client.publish(mqtt_telemetry_topic, lamp_off, qos=1)
+                    last_temp = float(line_data_split[1])
+                    if(device.read_stop_time() <= float(line_data_split[0])):
+                        device.stop_temp()
+                        if(device.read_stop_time == float(line_data_split[0])):
+                            print("Stopped at: "+str(line_data_split[0]))
+                        #break
+                    print("Time: "+str(line_data_split[0]))
+                    payload_data.update(payload_data_new)
+                    if(index % 12 == 0):
                         payload = json.dumps({"Type": 0, "Data" : payload_data, "Time" : str(time.time() - start_time)[:4], 'To' : "test-dev2"})
                         client.publish(mqtt_telemetry_topic, payload, qos=1)
                         write_file.write(str(line)+"\n")
                         payload_data = {}
                         index_data = []
                         output_string = json.loads(payload)
+                        if(start_predict_flag == 1):
+                            time.sleep(1)
+                            predict_payload = json.dumps({"Type": 1, "Data" :"Predict", "Time" : str(time.time() - start_time)[:4], "To" : "test-dev2"})
+                            client.publish(mqtt_telemetry_topic, predict_payload, qos=1)
+                            start_predict_flag = 2
                     index += 1
-                    time.sleep(1)
+                    time.sleep(.25)
                     #print(json.load(paylod))
             write_file.close()        
-            done_payload = payload = json.dumps({"Type": 1, "Data" :"Done", "Time" : str(time.time() - start_time)[:4], "To" : "test-dev2"})
+            done_payload = json.dumps({"Type": 1, "Data" :"Done State", "Time" : str(time.time() - start_time)[:4], "To" : "test-dev"})
             client.publish(mqtt_telemetry_topic, done_payload, qos=1)
-            done_payload = payload = json.dumps({"Type": 1, "Data" :"Done", "Time" : str(time.time() - start_time)[:4], "To" : "test-dev"})
+            done_payload = json.dumps({"Type": 1, "Data" :"Done", "Time" : str(time.time() - start_time)[:4], "To" : "test-dev2"})
             client.publish(mqtt_telemetry_topic, done_payload, qos=1)
-            device.stop_temp()
-            storage_client = storage.Client(credentials=credentials, project='turnkey-banner-265721')
-            bucket = storage_client.get_bucket('iot_bucket_453')
-            blob = bucket.blob('test-file')
-            blob.upload_from_filename(data_log)
-            print("Waiting To Start")
+            print("Done State")
+        if(device.read_reset()):
+            print("Send Reset")
+            payload = json.dumps({"Type": 1, "Data" : "Wait State", "Time" : str(time.time() - start_time), "To" : "test-dev"})
+            client.publish(mqtt_telemetry_topic, payload, qos=1)
+            payload = json.dumps({"Type": 1, "Data" : "Reset Done 1", "Time" : str(time.time() - start_time), "To" : "test-dev3"})
+            client.publish(mqtt_telemetry_topic, payload, qos=1)
+            device.reset_false()
 
     client.disconnect()
     client.loop_stop()

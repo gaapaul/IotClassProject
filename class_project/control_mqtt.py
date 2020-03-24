@@ -54,14 +54,10 @@ import time
 import base64
 import jwt
 import paho.mqtt.client as mqtt
-
 from gcloud import storage
 from oauth2client.service_account import ServiceAccountCredentials
-
 import argparse
 import numpy as np
-from keras.models import load_model
-from sklearn.preprocessing import MinMaxScaler
 
 def upload_blob(bucket_name, blob_text, destination_blob_name):
     """Uploads a file to the bucket."""
@@ -81,27 +77,8 @@ def log_data(request):
     BLOB_NAME = 'test-blob'
     BLOB_STR = '{"blob": "some json"}'
 
-    uppipload_blob(BUCKET_NAME, BLOB_STR, BLOB_NAME)
-    return
-
-def download_blob(bucket_name, source_blob_name, destination_file_name):
-    """Downloads a blob from the bucket."""
-    # bucket_name = "your-bucket-name"
-    # source_blob_name = "storage-object-name"
-    # destination_file_name = "local/path/to/file"
-
-    storage_client = storage.Client()
-
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(source_blob_name)
-    blob.download_to_filename(destination_file_name)
-
-    print(
-        "Blob {} downloaded to {}.".format(
-            source_blob_name, destination_file_name
-        )
-    )
-
+    upload_blob(BUCKET_NAME, BLOB_STR, BLOB_NAME)
+    return f'Success!'
 
 def create_jwt(project_id, private_key_file, algorithm):
     """Create a JWT (https://jwt.io) to establish an MQTT connection."""
@@ -127,83 +104,6 @@ class Device(object):
 
     def __init__(self):
         self.connected = False
-        self.start_predict = False
-        self.save_data = False
-        self.reset = False
-        self.temps = np.zeros((1,360,2)) #two features air and out temp
-    def log_air_temp(self,index,air,time):
-        self.temps[0,index,0] = air
-        self.temps[0,index,1] = time
-    def reset_false(self):
-        self.reset = False
-    def read_reset(self):
-        return self.reset
-    def start_predict(self):
-        self.start_predict = True
-        print("Start Predict On")
-    def stop_predict(self):
-        self.start_predict = False
-        print("Stop Predict")
-    def read_predict_state(self):
-        return self.start_predict
-    def read_data_state(self):
-        return self.save_data
-    def stop_save_data_state(self):
-        self.save_data = False
-    # def write_data_to_np(self):
-    #     for i in range(0, len(self.store_data[:])):
-    #         for j in range(0, len(sself.tore_data[0][:]),2):
-    #             self.temps[0,len(self.store_data[:])*(i) + int(j/2),0] = self.store_data[i][j]
-    #             self.temps[0,len(self.store_data[:])*(i) + int(j/2),1] = self.store_data[i][j+1]
-    #     self.store_data = [[]]
-    #     self.time_data = []
-    def make_prediction(self):
-        #in_file_name = parsed_args.in_file
-        scalers = {}
-        local_batch_size = 18
-        for i in range(len(self.temps[0,:,0])-1,-1,-1):
-            print(self.temps[0,i,0])
-            index = i
-            if(self.temps[0,i,0] != 0):
-                temp = self.temps[0,i,0]
-                break
-        for i in range(index,len(self.temps[0,:,0])):
-            self.temps[0,i,0] = temp
-            self.temps[0,i,1] = i * 10
-
-        print("temps")
-        print(self.temps[0,:,0])
-        print("times")
-        print(self.temps[0,:,1])
-        
-        # bucket_name = "iot_bucket_453"
-        # download_blob(bucket_name, "model_weights_data2_lstm.h5", "model_weights_data2_lstm.h5")
-
-        model = load_model("model_weights_data2_lstm.h5")    
-   
-        #val_scaled = self.temps
-        val_data_bak = self.temps
-        val_scaled = np.zeros((360,1,2))
-        #Scale data that change during run this way
-        for j in range(val_scaled.shape[0]):    
-            scalers[0] = MinMaxScaler(feature_range=(0, 1))
-            scalers[1] = MinMaxScaler(feature_range=(0, 1))
-            val_scaled[:,0, 0:1] = scalers[0].fit_transform(val_data_bak[0,:,1:2])  
-            val_scaled[:,0, 1:2] = scalers[1].fit_transform(val_data_bak[0,:,0:1])
-        #print(val_scaled[0:50,:,:])
-        print(val_scaled[:,0:1,:].shape)
-        yhat = model.predict(val_scaled[:,0:1,:] , batch_size = local_batch_size)
-        val_scaler = MinMaxScaler(feature_range=(0,1)).fit(self.temps[0,:,0:1])   
-        inv_yhat_out = val_scaler.inverse_transform(yhat)
-        print(yhat)
-        print(inv_yhat_out)
-        stop_time = 360
-        for i in range(0, len(inv_yhat_out)):
-            if(inv_yhat_out[i] > 90):
-                stop_time = self.temps[0,i,1]
-                break
-                print("Stop Time is: "+str(stop_time))
-        return stop_time, inv_yhat_out
 
     def wait_for_connection(self, timeout):
         """Wait for the device to become connected."""
@@ -214,7 +114,7 @@ class Device(object):
 
         if not self.connected:
             raise RuntimeError('Could not connect to MQTT bridge.')
-        
+
     def on_connect(self, unused_client, unused_userdata, unused_flags, rc):
         """Callback for when a device connects."""
         print('Connection Result:', error_str(rc))
@@ -237,50 +137,17 @@ class Device(object):
             print('Subscription failed.')
 
     def on_message(self, unused_client, unused_userdata, message):
-        index = 0
         """Callback when the device receives a message on a subscription."""
         payload = message.payload.decode('utf-8')
-        #print(payload["Data"]["Index"])
+        print(payload)
         #print('Received message \'{}\' on topic \'{}\' with Qos {}'.format(
             #base64.b64decode(message.payload), message.topic, str(message.qos)))
 
         # The device will receive its latest config when it subscribes to the
         # config topic. If there is no configuration for the device, the device
         # will receive a config with an empty payload.
-        #if not payload:
-        #    return
-        payload_dict = json.loads(payload)
-        #print(payload["Data"]["Index"])
-	#print(payload)
-        #print("Type: "+str(payload_dict["Type"]))
-        #print(payload_dict["Data"])
-        if(payload_dict["Type"] == 0): #It's Data 
-#            print(payload_dict["Data"]["Index"])
-
-            for i in payload_dict["Data"]["Index"]:
-#                print(payload_dict["Data"][str(i)]["Temp"])
-                self.temps[0,i,0] = float(payload_dict["Data"][str(i)]["Temp"])
-                self.temps[0,i,1] = float(payload_dict["Data"][str(i)]["Time"])
-            print(self.temps[0,i-12:i,:])
-
-        if(payload_dict["Type"] == 1):
-            if(payload_dict["Data"] == "Predict"):
-                self.start_predict = True
-                print("Starting Prediction")
-        if(payload_dict["Type"] == 1):
-            if(payload_dict["Data"] == "Done"):
-                self.save_data = True
-                print("Time to save Data")
-        if(payload_dict["Type"] == 1):
-            if(payload_dict["Data"] == "Reset"):
-                self.start_predict = False
-                self.save_data = False
-                self.temps = np.zeros((1,360,2)) #two features air and out temp
-                self.reset = True
-
-        # The config is passed in the payload of the message. In this example,
-        # the server sends a serialized JSON string.
-        return
+        if not payload:
+            return
 
 def parse_command_line_args():
     """Parse command line arguments."""
@@ -340,10 +207,6 @@ def dir_path(string):
 
 def main():
     args = parse_command_line_args()
-
-
-    data_log = 'run0.txt'
-    read_log = 'data_2025100.csv' 
     # Create the MQTT client and connect to Cloud IoT.
     client = mqtt.Client(
         client_id='projects/{}/locations/{}/registries/{}/devices/{}'.format(
@@ -383,10 +246,8 @@ def main():
 
     # Subscribe to the config topic.
     client.subscribe(mqtt_config_topic, qos=1)
-    input_string = ""
-    print("Waiting for data to Store then predict on")
+
     # Update and publish temperature readings at a rate of one per second.
-    start_time = time.time()
     while(True):
         # In an actual device, this would read the device's sensors. Here,
         # you update the temperature based on whether the fan is on.
@@ -398,56 +259,16 @@ def main():
         # Send events every second.
         # time.sleep(1)
         #  val_data = np.zeros((360,1,2))
+        print("Send Message:")
+        usrInputMsg=input()
+        print("To?:")
+        usrInputAddr=input()
+        # Report the device's temperature to the server by serializing it
+        # as a JSON string.
+        payload = json.dumps({'Type': 1, 'Data' : usrInputMsg, 'To' : usrInputAddr, 'Time' : 0})
+        client.publish(mqtt_telemetry_topic, payload, qos=1)
 
-        time.sleep(.1)
-        if(device.read_predict_state()): #Got config update to turn lamp on.
-            start_time = time.time()
-            #done_payload = payload = json.dumps({"Type": 1, "Data" : "Thanks for Data", "Time" : str(time.time() - start_time), "To" : "test-dev"})
-            #device.write_data_to_np()
-            #client.publish(mqtt_telemetry_topic, done_payload, qos=1)
-            stop_time, prediction = device.make_prediction()
-            with open("yhat_vm.txt", "w") as prediction_file:
-                for line in prediction:
-                    prediction_file.write(str(line) + "\n")
-                    print(line)
-                prediction_file.close()
-            stop_time = "Stop Time" + str(stop_time)
-            print(stop_time)
-            stop_payload = json.dumps({"Type": 1, "Data" : stop_time, "Time" : str(time.time() - start_time)[:4], "To" : "test-dev"})
-            client.publish(mqtt_telemetry_topic, stop_payload, qos=1)
-            device.stop_predict()
-#            storage_client = storage.Client(credentials=credentials, project='turnkey-banner-265721')
- #           bucket = storage_client.get_bucket('iot_bucket_453')
-  #          blob = bucket.blob('yhat_file')
-   #         blob.upload_from_filename("yhat.txt")
-            #print("Waiting To Start")
-        if(device.read_data_state()):
-            device.stop_save_data_state()
-            done_payload = json.dumps({"Type": 1, "Data" : "Thanks for Data", "Time" : str(time.time() - start_time), "To" : "test-dev"})
-            client.publish(mqtt_telemetry_topic, done_payload, qos=1)
-            done_payload = json.dumps({"Type": 1, "Data" : "Wait State", "Time" : str(time.time() - start_time), "To" : "test-dev2"})
-            client.publish(mqtt_telemetry_topic, done_payload, qos=1)
-            with open('turnkey-banner-265721-da1327341af6.json', 'r') as json_file:
-                data = json.load(json_file)
 
-            credentials = ServiceAccountCredentials.from_json_keyfile_dict(
-                data
-            )
-            storage_client = storage.Client(credentials=credentials, project='turnkey-banner-265721')
-            bucket = storage_client.get_bucket('iot_bucket_453')
-            blob = bucket.blob('yhat_vm-file')
-            blob.upload_from_filename("yhat_vm.txt")
-            print("Return Prediction to User")
-            payload = json.dumps({"Type": 0, "Data" : prediction.tolist(), "Time" : str(time.time() - start_time)[:4], 'To' : "test-dev3"})            
-            client.publish(mqtt_telemetry_topic, payload, qos=1)
-            print("Waiting for data to Store")
-        if(device.read_reset()):
-            print("Reset")
-            payload = json.dumps({"Type": 1, "Data" : "Wait State", "Time" : str(time.time() - start_time), "To" : "test-dev2"})
-            client.publish(mqtt_telemetry_topic, payload, qos=1)
-            payload = json.dumps({"Type": 1, "Data" : "Reset Done 2", "Time" : str(time.time() - start_time), "To" : "test-dev3"})
-            client.publish(mqtt_telemetry_topic, payload, qos=1)
-            device.reset_false()
     client.disconnect()
     client.loop_stop()
     print('Finished loop successfully. Goodbye!')
