@@ -80,7 +80,7 @@ def log_data(request):
     BLOB_STR = '{"blob": "some json"}'
 
     upload_blob(BUCKET_NAME, BLOB_STR, BLOB_NAME)
-    return f'Success!'
+    return
 
 def download_blob(bucket_name, source_blob_name, destination_file_name):
     """Downloads a blob from the bucket."""
@@ -153,7 +153,7 @@ class Device(object):
     def make_prediction(self):
         in_file_name = parsed_args.in_file
         bucket_name = "iot_bucket_453"
-        download_blob(bucket_name, "model_weights_data2_lstm.h5", "model_weights_data2_lstm.h5"):
+        download_blob(bucket_name, "model_weights_data2_lstm.h5", "model_weights_data2_lstm.h5")
 
         model = load_model("model_weights_data2_lstm.h5")    
    
@@ -172,8 +172,8 @@ class Device(object):
         #print(val_scaled[0:50,:,:])
         yhat = model.predict(val_scaled[:,0:1,:] , batch_size = local_batch_size)
         val_scaler = MinMaxScaler(feature_range=(0,1)).fit(val_data_bak[:,0,1:2])   
-        return inv_yhat_out = val_scaler.inverse_transform(yhat)
-
+        inv_yhat_out = val_scaler.inverse_transform(yhat)
+        return inv_yhat_out
 
     def wait_for_connection(self, timeout):
         """Wait for the device to become connected."""
@@ -310,9 +310,9 @@ def dir_path(string):
 def main():
     args = parse_command_line_args()
 
-    credentials = ServiceAccountCredentials.from_json_keyfile_dict(
-        credentials_dict
-    )
+    #credentials = ServiceAccountCredentials.from_json_keyfile_dict(
+    #    credentials_dict
+    #)
     data_log = 'run0.txt'
     read_log = 'data_2025100.csv' 
     # Create the MQTT client and connect to Cloud IoT.
@@ -379,15 +379,14 @@ def main():
                 for line in yhat:
                     prediction.write(str(line) + "\n")
                     print("Time: "+str(time.time() - start_time))
-                        write_file.write(+"\n")
-                write_file.close()        
+                write_file.close()
             done_payload = json.dumps({"Type": 1, "Data" :"Done Predict", "Time" : str(time.time() - start_time)[:4], "To" : "test-dev2"})
             client.publish(mqtt_telemetry_topic, done_payload, qos=1)
             device.stop_predict()
-            storage_client = storage.Client(credentials=credentials, project='turnkey-banner-265721')
-            bucket = storage_client.get_bucket('iot_bucket_453')
-            blob = bucket.blob('yhat_file')
-            blob.upload_from_filename("yhat.txt")
+#            storage_client = storage.Client(credentials=credentials, project='turnkey-banner-265721')
+ #           bucket = storage_client.get_bucket('iot_bucket_453')
+  #          blob = bucket.blob('yhat_file')
+   #         blob.upload_from_filename("yhat.txt")
             print("Waiting To Start")
 
     client.disconnect()
