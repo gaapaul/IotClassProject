@@ -279,8 +279,6 @@ def main():
     with open(read_log,"r") as read_file:
         lines = [line.rstrip() for line in read_file]
     print("Waiting To Start")
-    payload_data = {}
-    index_data = []
     # Update and publish temperature readings at a rate of one per second.
     while(True):
         # In an actual device, this would read the device's sensors. Here,
@@ -311,20 +309,20 @@ def main():
                 start_time = time.time()
                 index = 0
                 time.sleep(1)
-                payload_data = []
+                payload_data = {}
+                index_data = []
                 for i in range(0,len(lines)-10,10):
-                    index += 1
                     line = lines[i] 
                     #time.sleep(.01)
                     print("Time: "+str(time.time() - start_time))
                     #input_string = '{"Type": 0, "Data" :'+str(line)+', "Time" : '+str(time.time() - start_time)+'}'
                     #print(input_string)
-                    line_data = line[:23]
-                    payload_data = line_data.split(",")
+                    line_data = line[:25]
+                    line_data_split = line_data.split(",")
                     #print(payload_data)
-                    payload_data = {0 : {"Temp" : float(20.00), "Time" : float(0.0)}}
                     index_data += [index]
-                    payload_data_new = {index : {"Temp" : float(payload_data[1]), "Time" : float(payload_data[0])} "Index" : index_data}
+                    payload_data_new = {index : {"Temp" : float(line_data_split[1]), "Time" : float(line_data_split[0])}, "Index" : index_data}
+                    payload_data.update(payload_data_new )
                     if(index % 6 == 0):
                         payload = json.dumps({"Type": 0, "Data" : payload_data, "Time" : str(time.time() - start_time)[:4], 'To' : "test-dev2"})
                         client.publish(mqtt_telemetry_topic, payload, qos=1)
@@ -332,8 +330,7 @@ def main():
                         payload_data = {}
                         index_data = []
                         output_string = json.loads(payload)
-                        print(output_string)
-                        break
+                    index += 1
                     time.sleep(1)
                     #print(json.load(paylod))
             write_file.close()        
