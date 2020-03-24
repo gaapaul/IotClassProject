@@ -79,7 +79,7 @@ def log_data(request):
     BLOB_NAME = 'test-blob'
     BLOB_STR = '{"blob": "some json"}'
 
-    upload_blob(BUCKET_NAME, BLOB_STR, BLOB_NAME)
+    uppipload_blob(BUCKET_NAME, BLOB_STR, BLOB_NAME)
     return
 
 def download_blob(bucket_name, source_blob_name, destination_file_name):
@@ -130,7 +130,7 @@ class Device(object):
         self.lamp_on = False
         self.store_data = [[]]
         self.time_data = []
-        self.start_prediction = True
+        self.start_predict = False
         self.temps = np.zeros((1,360,2)) #two features air and out temp
     def log_air_temp(self,index,air,time):
         self.temps[0,index,0] = air
@@ -247,7 +247,7 @@ class Device(object):
             self.store_data.insert(index, rtime)
         if(payload["Type"] == 1):
             if(payload["Data"] == "Done"):
-                self.start_prediction = True
+                self.start_prediction =False
         # The config is passed in the payload of the message. In this example,
         # the server sends a serialized JSON string.
 
