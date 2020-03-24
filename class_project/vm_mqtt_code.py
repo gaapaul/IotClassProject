@@ -143,13 +143,13 @@ class Device(object):
         print("Lamp On")
     def read_predict_state(self):
         return self.start_predict
-    def write_data_to_np(self):
-        for i in range(0, len(self.store_data[:])):
-            for j in range(0, len(sself.tore_data[0][:]),2):
-                self.temps[0,len(self.store_data[:])*(i) + int(j/2),0] = self.store_data[i][j]
-                self.temps[0,len(self.store_data[:])*(i) + int(j/2),1] = self.store_data[i][j+1]
-        self.store_data = [[]]
-        self.time_data = []
+    # def write_data_to_np(self):
+    #     for i in range(0, len(self.store_data[:])):
+    #         for j in range(0, len(sself.tore_data[0][:]),2):
+    #             self.temps[0,len(self.store_data[:])*(i) + int(j/2),0] = self.store_data[i][j]
+    #             self.temps[0,len(self.store_data[:])*(i) + int(j/2),1] = self.store_data[i][j+1]
+    #     self.store_data = [[]]
+    #     self.time_data = []
     def make_prediction(self):
         in_file_name = parsed_args.in_file
         bucket_name = "iot_bucket_453"
@@ -220,34 +220,37 @@ class Device(object):
         if not payload:
             return
         payload = json.loads(payload)
+        #print(payload)
         if(payload["Type"] == 0): #It's Data!
             my_data = payload["Data"]
             rtime = float(payload["Time"])
+            for i in payload_data["Index"]:
+                log_air_temp(self,i,payload_data[i]["Temp"],payload_data[i]["Time"])
+                print(self.temps[0,-8:,:])
+            # split_data = my_data.split(",")
+            # corrected_data = []
+            # for i in range(len(split_data)):
+            #     for char in delete_string:
+            #         split_data[i] = split_data[i].replace(char,"")
+            # i = 0
+            # while(i < (len(split_data))):
+            #     if(split_data[i] == ""):
+            #         split_data.pop(i)
+            #     if(i < len(split_data)):
+            #         split_data[i] = float(split_data[i])
+            #     i+=1
+            # print(split_data[:])
 
-            split_data = my_data.split(",")
-            corrected_data = []
-            for i in range(len(split_data)):
-                for char in delete_string:
-                    split_data[i] = split_data[i].replace(char,"")
-            i = 0
-            while(i < (len(split_data))):
-                if(split_data[i] == ""):
-                    split_data.pop(i)
-                if(i < len(split_data)):
-                    split_data[i] = float(split_data[i])
-                i+=1
-            print(split_data[:])
-
-            for i in range(len(self.time_data)-1,-1,-1):
-                print(i)
-                index = i+1
-                if(rtime > self.time_data[i]):
-                    break
-            self.time_data.insert(index, rtime)
-            self.store_data.insert(index, rtime)
+            # for i in range(len(self.time_data)-1,-1,-1):
+            #     print(i)
+            #     index = i+1
+            #     if(rtime > self.time_data[i]):
+            #         break
+            # self.time_data.insert(index, rtime)
+            # self.store_data.insert(index, rtime)
         if(payload["Type"] == 1):
             if(payload["Data"] == "Done"):
-                self.start_prediction =True
+                self.start_predict =True
         # The config is passed in the payload of the message. In this example,
         # the server sends a serialized JSON string.
 
@@ -370,10 +373,11 @@ def main():
         #  val_data = np.zeros((360,1,2))
 
         time.sleep(1)
+        print(device.read_predict_state())
         if(device.read_predict_state()): #Got config update to turn lamp on.
             start_time = time.time()
             done_payload = payload = json.dumps({"Type": 1, "Data" : "Thanks for Data", "Time" : str(time.time() - start_time), "To" : "test-dev"})
-            device.write_data_to_np()
+            #device.write_data_to_np()
             client.publish(mqtt_telemetry_topic, done_payload, qos=1)
             prediction = device.make_prediction()
             with open("yhat.txt", "w") as prediction_file:

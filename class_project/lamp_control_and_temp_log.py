@@ -279,7 +279,8 @@ def main():
     with open(read_log,"r") as read_file:
         lines = [line.rstrip() for line in read_file]
     print("Waiting To Start")
-
+    payload_data = {}
+    index_data = []
     # Update and publish temperature readings at a rate of one per second.
     while(True):
         # In an actual device, this would read the device's sensors. Here,
@@ -292,9 +293,17 @@ def main():
         # Send events every second.
         # time.sleep(1)
         #  val_data = np.zeros((360,1,2))
-
+        print("Send Message:")
+        usrInputMsg=input()
+        print("To?:")
+        usrInputAddr=input()
+        # Report the device's temperature to the server by serializing it
+        # as a JSON string.
+        payload = json.dumps({'Type': 1, 'Data' : usrInputMsg, 'To' : usrInputAddr, 'Time' : 0})
+        print('Publishing payload', payload)
+        client.publish(mqtt_telemetry_topic, payload, qos=1)
         time.sleep(1)
-        if(device.read_lamp()): #Got config update to turn lamp on.
+        if(True): #Got config update to turn lamp on.
             start_time = time.time()
             done_payload = payload = json.dumps({"Type": 1, "Data" : "On", "Time" : str(time.time() - start_time), "To" : "test-dev2"})
             client.publish(mqtt_telemetry_topic, done_payload, qos=1)
@@ -310,15 +319,21 @@ def main():
                     print("Time: "+str(time.time() - start_time))
                     #input_string = '{"Type": 0, "Data" :'+str(line)+', "Time" : '+str(time.time() - start_time)+'}'
                     #print(input_string)
-                    payload_data += [line[:23]]
+                    line_data = line[:23]
+                    payload_data = line_data.split(",")
+                    #print(payload_data)
+                    payload_data = {0 : {"Temp" : float(20.00), "Time" : float(0.0)}}
+                    index_data += [index]
+                    payload_data_new = {index : {"Temp" : float(payload_data[1]), "Time" : float(payload_data[0])} "Index" : index_data}
                     if(index % 6 == 0):
-
-                        payload = json.dumps({"Type": 0, "Data" :str(payload_data), "Time" : str(time.time() - start_time)[:4], 'To' : "test-dev2"})
+                        payload = json.dumps({"Type": 0, "Data" : payload_data, "Time" : str(time.time() - start_time)[:4], 'To' : "test-dev2"})
                         client.publish(mqtt_telemetry_topic, payload, qos=1)
                         write_file.write(str(line)+"\n")
-                        payload_data = []
+                        payload_data = {}
+                        index_data = []
                         output_string = json.loads(payload)
                         print(output_string)
+                        break
                     time.sleep(1)
                     #print(json.load(paylod))
             write_file.close()        
@@ -326,7 +341,7 @@ def main():
             client.publish(mqtt_telemetry_topic, done_payload, qos=1)
             done_payload = payload = json.dumps({"Type": 1, "Data" :"Done", "Time" : str(time.time() - start_time)[:4], "To" : "test-dev"})
             client.publish(mqtt_telemetry_topic, done_payload, qos=1)
-            device.stop_lamp()
+            device.stop_temp()
             storage_client = storage.Client(credentials=credentials, project='turnkey-banner-265721')
             bucket = storage_client.get_bucket('iot_bucket_453')
             blob = bucket.blob('test-file')
