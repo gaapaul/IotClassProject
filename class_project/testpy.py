@@ -41,8 +41,8 @@ fromUser = payload['From']
 print(msg)
 print(recipient)
 print(fromUser)
-
-
+send_message = "Message: " + msg + ", Received From: "+ fromUser 
+print(str(send_message))
 
 
 

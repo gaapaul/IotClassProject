@@ -14,7 +14,7 @@
 #Code edited from end to end example Github link below
 #https://github.com/GoogleCloudPlatform/python-docs-samples.git
 
-r"""Sample device that consumes configuration from Google Cloud IoT.
+"""Sample device that consumes configuration from Google Cloud IoT.
 This example represents a simple device with a temperature sensor and a fan
 (simulated with software). When the device's fan is turned on, its temperature
 decreases by one degree per second, and when the device's fan is turned off,
@@ -54,7 +54,33 @@ import time
 import base64
 import jwt
 import paho.mqtt.client as mqtt
+from gcloud import storage
+from oauth2client.service_account import ServiceAccountCredentials
+import argparse
+import numpy as np
+from keras.models import load_model
+from sklearn.preprocessing import MinMaxScaler
 
+def upload_blob(bucket_name, blob_text, destination_blob_name):
+    """Uploads a file to the bucket."""
+    storage_client = storage.Client()
+    bucket = storage_client.get_bucket(bucket_name)
+    blob = bucket.blob(destination_blob_name)
+
+    blob.upload_from_string(blob_text)
+
+    print('File {} uploaded to {}.'.format(
+        source_file_name,
+        destination_blob_name))
+
+def log_data(request):
+    request_json = request.get_json()
+    BUCKET_NAME = 'iot_bucket_453'
+    BLOB_NAME = 'test-blob'
+    BLOB_STR = '{"blob": "some json"}'
+
+    upload_blob(BUCKET_NAME, BLOB_STR, BLOB_NAME)
+    return f'Success!'
 
 def create_jwt(project_id, private_key_file, algorithm):
     """Create a JWT (https://jwt.io) to establish an MQTT connection."""
@@ -82,7 +108,18 @@ class Device(object):
         self.temperature = 0
         self.fan_on = False
         self.connected = False
-
+        self.lamp_on = False
+    def log_air_temp(self,index,air,time):
+        self.temps[0,index,0] = air
+        self.temps[0,index,1] = time
+    def start_temp(self):
+        self.lamp_on = True
+        print("Lamp On")
+    def stop_temp(self):
+        self.lamp_on = False
+        print("Lamp On")
+    def read_lamp(self):
+        return self.lamp_on
     def wait_for_connection(self, timeout):
         """Wait for the device to become connected."""
         total_time = 0
@@ -118,13 +155,18 @@ class Device(object):
         """Callback when the device receives a message on a subscription."""
         payload = message.payload.decode('utf-8')
         print(payload)
-        # print('Received message \'{}\' on topic \'{}\' with Qos {}'.format(
-        #     base64.b64decode(message.payload), message.topic, str(message.q
+        #print('Received message \'{}\' on topic \'{}\' with Qos {}'.format(
+            #base64.b64decode(message.payload), message.topic, str(message.qos)))
+
         # The device will receive its latest config when it subscribes to the
         # config topic. If there is no configuration for the device, the device
         # will receive a config with an empty payload.
         if not payload:
             return
+        payload = json.loads(payload)
+        if(payload["Type"] == 1): #its config update
+            if(payload["Data"] == "Start Temp"):
+                self.lamp_on = True
 
         # The config is passed in the payload of the message. In this example,
         # the server sends a serialized JSON string.
@@ -173,13 +215,27 @@ def parse_command_line_args():
         default='event',
         help=('Indicates whether the message to be published is a '
               'telemetry event or a device state message.'))
+    parser.add_argument('-i', '--in_file', help='Input file for Network weights',required=False)
 
     return parser.parse_args()
-
+def dir_path(string):
+    string2 = os.getcwd() + string
+    if os.path.isdir(string2):
+        return string2
+    elif os.path.isdir(string):
+        return string
+    else:
+        raise NotADirectoryError(string)
 
 def main():
     args = parse_command_line_args()
-
+    with open('turnkey-banner-265721-da1327341af6.json', 'r') as json_file:
+        data = json.load(json_file)
+    credentials = ServiceAccountCredentials.from_json_keyfile_dict(
+        data
+    )
+    data_log = 'run0.txt'
+    read_log = 'data_2025100.csv' 
     # Create the MQTT client and connect to Cloud IoT.
     client = mqtt.Client(
         client_id='projects/{}/locations/{}/registries/{}/devices/{}'.format(
@@ -219,23 +275,63 @@ def main():
 
     # Subscribe to the config topic.
     client.subscribe(mqtt_config_topic, qos=1)
+    input_string = ""
+    with open(read_log,"r") as read_file:
+        lines = [line.rstrip() for line in read_file]
+    print("Waiting To Start")
 
     # Update and publish temperature readings at a rate of one per second.
     while(True):
         # In an actual device, this would read the device's sensors. Here,
         # you update the temperature based on whether the fan is on.
-        time.sleep(1)
-        print("Send Message:")
-        usrInputMsg=input()
-        print("To?:")
-        usrInputAddr=input()
         # Report the device's temperature to the server by serializing it
         # as a JSON string.
-        payload = json.dumps({'Type': 1, 'Data' : usrInputMsg, 'To' : usrInputAddr, 'Time' : 0})
-        print('Publishing payload', payload)
-        client.publish(mqtt_telemetry_topic, payload, qos=1)
+        #payload = json.dumps({'MessageSent': usrInputMsg, 'To' : usrInputAddr, 'From' : args.device_id})
+        # print('Publishing payload', payload)
+        # client.publish(mqtt_telemetry_topic, payload, qos=1)
         # Send events every second.
+        # time.sleep(1)
+        #  val_data = np.zeros((360,1,2))
+
         time.sleep(1)
+        if(device.read_lamp()): #Got config update to turn lamp on.
+            start_time = time.time()
+            done_payload = payload = json.dumps({"Type": 1, "Data" : "On", "Time" : str(time.time() - start_time), "To" : "test-dev2"})
+            client.publish(mqtt_telemetry_topic, done_payload, qos=1)
+            with open(data_log, "w") as write_file:
+                start_time = time.time()
+                index = 0
+                time.sleep(1)
+                payload_data = []
+                for i in range(0,len(lines)-10,10):
+                    index += 1
+                    line = lines[i] 
+                    #time.sleep(.01)
+                    print("Time: "+str(time.time() - start_time))
+                    #input_string = '{"Type": 0, "Data" :'+str(line)+', "Time" : '+str(time.time() - start_time)+'}'
+                    #print(input_string)
+                    payload_data += [line[:23]]
+                    if(index % 6 == 0):
+
+                        payload = json.dumps({"Type": 0, "Data" :str(payload_data), "Time" : str(time.time() - start_time)[:4], 'To' : "test-dev2"})
+                        client.publish(mqtt_telemetry_topic, payload, qos=1)
+                        write_file.write(str(line)+"\n")
+                        payload_data = []
+                        output_string = json.loads(payload)
+                        print(output_string)
+                    time.sleep(1)
+                    #print(json.load(paylod))
+            write_file.close()        
+            done_payload = payload = json.dumps({"Type": 1, "Data" :"Done", "Time" : str(time.time() - start_time)[:4], "To" : "test-dev2"})
+            client.publish(mqtt_telemetry_topic, done_payload, qos=1)
+            done_payload = payload = json.dumps({"Type": 1, "Data" :"Done", "Time" : str(time.time() - start_time)[:4], "To" : "test-dev"})
+            client.publish(mqtt_telemetry_topic, done_payload, qos=1)
+            device.stop_lamp()
+            storage_client = storage.Client(credentials=credentials, project='turnkey-banner-265721')
+            bucket = storage_client.get_bucket('iot_bucket_453')
+            blob = bucket.blob('test-file')
+            blob.upload_from_filename(data_log)
+            print("Waiting To Start")
 
     client.disconnect()
     client.loop_stop()

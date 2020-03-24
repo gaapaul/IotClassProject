@@ -14,7 +14,7 @@
 #Code edited from end to end example Github link below
 #https://github.com/GoogleCloudPlatform/python-docs-samples.git
 
-r"""Sample device that consumes configuration from Google Cloud IoT.
+"""Sample device that consumes configuration from Google Cloud IoT.
 This example represents a simple device with a temperature sensor and a fan
 (simulated with software). When the device's fan is turned on, its temperature
 decreases by one degree per second, and when the device's fan is turned off,
@@ -54,6 +54,51 @@ import time
 import base64
 import jwt
 import paho.mqtt.client as mqtt
+from gcloud import storage
+from oauth2client.service_account import ServiceAccountCredentials
+import argparse
+import numpy as np
+from keras.models import load_model
+from sklearn.preprocessing import MinMaxScaler
+from google.cloud import storage
+def upload_blob(bucket_name, blob_text, destination_blob_name):
+    """Uploads a file to the bucket."""
+    storage_client = storage.Client()
+    bucket = storage_client.get_bucket(bucket_name)
+    blob = bucket.blob(destination_blob_name)
+
+    blob.upload_from_string(blob_text)
+
+    print('File {} uploaded to {}.'.format(
+        source_file_name,
+        destination_blob_name))
+
+def log_data(request):
+    request_json = request.get_json()
+    BUCKET_NAME = 'iot_bucket_453'
+    BLOB_NAME = 'test-blob'
+    BLOB_STR = '{"blob": "some json"}'
+
+    upload_blob(BUCKET_NAME, BLOB_STR, BLOB_NAME)
+    return f'Success!'
+
+def download_blob(bucket_name, source_blob_name, destination_file_name):
+    """Downloads a blob from the bucket."""
+    # bucket_name = "your-bucket-name"
+    # source_blob_name = "storage-object-name"
+    # destination_file_name = "local/path/to/file"
+
+    storage_client = storage.Client()
+
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(source_blob_name)
+    blob.download_to_filename(destination_file_name)
+
+    print(
+        "Blob {} downloaded to {}.".format(
+            source_blob_name, destination_file_name
+        )
+    )
 
 
 def create_jwt(project_id, private_key_file, algorithm):
@@ -82,6 +127,53 @@ class Device(object):
         self.temperature = 0
         self.fan_on = False
         self.connected = False
+        self.lamp_on = False
+        self.store_data = [[]]
+        self.time_data = []
+        self.start_prediction = True
+        self.temps = np.zeros((1,360,2)) #two features air and out temp
+    def log_air_temp(self,index,air,time):
+        self.temps[0,index,0] = air
+        self.temps[0,index,1] = time
+    def start_predict(self):
+        self.start_predict = True
+        print("Lamp On")
+    def stop_predict(self):
+        self.start_predict = False
+        print("Lamp On")
+    def read_predict_state(self):
+        return self.start_predict
+    def write_data_to_np(self):
+        for i in range(0, len(self.store_data[:])):
+            for j in range(0, len(sself.tore_data[0][:]),2):
+                self.temps[0,len(self.store_data[:])*(i) + int(j/2),0] = self.store_data[i][j]
+                self.temps[0,len(self.store_data[:])*(i) + int(j/2),1] = self.store_data[i][j+1]
+        self.store_data = [[]]
+        self.time_data = []
+    def make_prediction(self):
+        in_file_name = parsed_args.in_file
+        bucket_name = "iot_bucket_453"
+        download_blob(bucket_name, "model_weights_data2_lstm.h5", "model_weights_data2_lstm.h5"):
+
+        model = load_model("model_weights_data2_lstm.h5")    
+   
+
+        in_file_name = parsed_args.in_file
+        model = load_model(in_file_name)    
+
+        val_scaled = self.temps
+        val_data_bak = self.temps
+        #Scale data that change during run this way
+        for j in range(val_scaled.shape[0]):    
+            scalers[0] = MinMaxScaler(feature_range=(0, 1))
+            scalers[1] = MinMaxScaler(feature_range=(0, 1))
+            val_scaled[:,0, 0:1] = scalers[0].fit_transform(val_data[:,0,0:1])  
+            val_scaled[:,0, 1:2] = scalers[1].fit_transform(val_data[:,0,1:2])
+        #print(val_scaled[0:50,:,:])
+        yhat = model.predict(val_scaled[:,0:1,:] , batch_size = local_batch_size)
+        val_scaler = MinMaxScaler(feature_range=(0,1)).fit(val_data_bak[:,0,1:2])   
+        return inv_yhat_out = val_scaler.inverse_transform(yhat)
+
 
     def wait_for_connection(self, timeout):
         """Wait for the device to become connected."""
@@ -92,7 +184,7 @@ class Device(object):
 
         if not self.connected:
             raise RuntimeError('Could not connect to MQTT bridge.')
-
+        
     def on_connect(self, unused_client, unused_userdata, unused_flags, rc):
         """Callback for when a device connects."""
         print('Connection Result:', error_str(rc))
@@ -115,17 +207,47 @@ class Device(object):
             print('Subscription failed.')
 
     def on_message(self, unused_client, unused_userdata, message):
+        index = 0
         """Callback when the device receives a message on a subscription."""
         payload = message.payload.decode('utf-8')
         print(payload)
-        # print('Received message \'{}\' on topic \'{}\' with Qos {}'.format(
-        #     base64.b64decode(message.payload), message.topic, str(message.q
+        #print('Received message \'{}\' on topic \'{}\' with Qos {}'.format(
+            #base64.b64decode(message.payload), message.topic, str(message.qos)))
+
         # The device will receive its latest config when it subscribes to the
         # config topic. If there is no configuration for the device, the device
         # will receive a config with an empty payload.
         if not payload:
             return
+        payload = json.loads(payload)
+        if(payload["Type"] == 0): #It's Data!
+            my_data = payload["Data"]
+            rtime = float(payload["Time"])
 
+            split_data = my_data.split(",")
+            corrected_data = []
+            for i in range(len(split_data)):
+                for char in delete_string:
+                    split_data[i] = split_data[i].replace(char,"")
+            i = 0
+            while(i < (len(split_data))):
+                if(split_data[i] == ""):
+                    split_data.pop(i)
+                if(i < len(split_data)):
+                    split_data[i] = float(split_data[i])
+                i+=1
+            print(split_data[:])
+
+            for i in range(len(self.time_data)-1,-1,-1):
+                print(i)
+                index = i+1
+                if(rtime > self.time_data[i]):
+                    break
+            self.time_data.insert(index, rtime)
+            self.store_data.insert(index, rtime)
+        if(payload["Type"] == 1):
+            if(payload["Data"] == "Done"):
+                self.start_prediction = True
         # The config is passed in the payload of the message. In this example,
         # the server sends a serialized JSON string.
 
@@ -173,13 +295,26 @@ def parse_command_line_args():
         default='event',
         help=('Indicates whether the message to be published is a '
               'telemetry event or a device state message.'))
+    parser.add_argument('-i', '--in_file', help='Input file for Network weights',required=False)
 
     return parser.parse_args()
-
+def dir_path(string):
+    string2 = os.getcwd() + string
+    if os.path.isdir(string2):
+        return string2
+    elif os.path.isdir(string):
+        return string
+    else:
+        raise NotADirectoryError(string)
 
 def main():
     args = parse_command_line_args()
 
+    credentials = ServiceAccountCredentials.from_json_keyfile_dict(
+        credentials_dict
+    )
+    data_log = 'run0.txt'
+    read_log = 'data_2025100.csv' 
     # Create the MQTT client and connect to Cloud IoT.
     client = mqtt.Client(
         client_id='projects/{}/locations/{}/registries/{}/devices/{}'.format(
@@ -219,23 +354,41 @@ def main():
 
     # Subscribe to the config topic.
     client.subscribe(mqtt_config_topic, qos=1)
+    input_string = ""
 
     # Update and publish temperature readings at a rate of one per second.
     while(True):
         # In an actual device, this would read the device's sensors. Here,
         # you update the temperature based on whether the fan is on.
-        time.sleep(1)
-        print("Send Message:")
-        usrInputMsg=input()
-        print("To?:")
-        usrInputAddr=input()
         # Report the device's temperature to the server by serializing it
         # as a JSON string.
-        payload = json.dumps({'Type': 1, 'Data' : usrInputMsg, 'To' : usrInputAddr, 'Time' : 0})
-        print('Publishing payload', payload)
-        client.publish(mqtt_telemetry_topic, payload, qos=1)
+        #payload = json.dumps({'MessageSent': usrInputMsg, 'To' : usrInputAddr, 'From' : args.device_id})
+        # print('Publishing payload', payload)
+        # client.publish(mqtt_telemetry_topic, payload, qos=1)
         # Send events every second.
+        # time.sleep(1)
+        #  val_data = np.zeros((360,1,2))
+
         time.sleep(1)
+        if(device.read_predict_state()): #Got config update to turn lamp on.
+            start_time = time.time()
+            done_payload = payload = json.dumps({"Type": 1, "Data" : "Thanks for Data", "Time" : str(time.time() - start_time), "To" : "test-dev"})
+            client.publish(mqtt_telemetry_topic, done_payload, qos=1)
+            prediction = device.make_prediction()
+            with open("yhat.txt", "w") as prediction_file:
+                for line in yhat:
+                    prediction.write(str(line) + "\n")
+                    print("Time: "+str(time.time() - start_time))
+                        write_file.write(+"\n")
+                write_file.close()        
+            done_payload = json.dumps({"Type": 1, "Data" :"Done Predict", "Time" : str(time.time() - start_time)[:4], "To" : "test-dev2"})
+            client.publish(mqtt_telemetry_topic, done_payload, qos=1)
+            device.stop_predict()
+            storage_client = storage.Client(credentials=credentials, project='turnkey-banner-265721')
+            bucket = storage_client.get_bucket('iot_bucket_453')
+            blob = bucket.blob('yhat_file')
+            blob.upload_from_filename("yhat.txt")
+            print("Waiting To Start")
 
     client.disconnect()
     client.loop_stop()
