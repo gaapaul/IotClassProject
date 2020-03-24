@@ -247,7 +247,7 @@ class Device(object):
             self.store_data.insert(index, rtime)
         if(payload["Type"] == 1):
             if(payload["Data"] == "Done"):
-                self.start_prediction =False
+                self.start_prediction =True
         # The config is passed in the payload of the message. In this example,
         # the server sends a serialized JSON string.
 
@@ -373,6 +373,7 @@ def main():
         if(device.read_predict_state()): #Got config update to turn lamp on.
             start_time = time.time()
             done_payload = payload = json.dumps({"Type": 1, "Data" : "Thanks for Data", "Time" : str(time.time() - start_time), "To" : "test-dev"})
+            device.write_data_to_np()
             client.publish(mqtt_telemetry_topic, done_payload, qos=1)
             prediction = device.make_prediction()
             with open("yhat.txt", "w") as prediction_file:
