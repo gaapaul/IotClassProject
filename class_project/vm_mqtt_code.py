@@ -210,23 +210,28 @@ class Device(object):
         index = 0
         """Callback when the device receives a message on a subscription."""
         payload = message.payload.decode('utf-8')
-        print(payload)
+        #print(payload["Data"]["Index"])
         #print('Received message \'{}\' on topic \'{}\' with Qos {}'.format(
             #base64.b64decode(message.payload), message.topic, str(message.qos)))
 
         # The device will receive its latest config when it subscribes to the
         # config topic. If there is no configuration for the device, the device
         # will receive a config with an empty payload.
-        if not payload:
-            return
-        payload = json.loads(payload)
-        #print(payload)
-        if(payload["Type"] == 0): #It's Data!
-            my_data = payload["Data"]
-            rtime = float(payload["Time"])
-            for i in payload_data["Index"]:
-                log_air_temp(self,i,payload_data[i]["Temp"],payload_data[i]["Time"])
-                print(self.temps[0,-8:,:])
+        #if not payload:
+        #    return
+        payload_dict = json.loads(payload)
+        #print(payload["Data"]["Index"])
+	#print(payload)
+        #print("Type: "+str(payload_dict["Type"]))
+        #print(payload_dict["Data"])
+        if(payload_dict["Type"] == 0): #It's Data 
+#            print(payload_dict["Data"]["Index"])
+
+            for i in payload_dict["Data"]["Index"]:
+#                print(payload_dict["Data"][str(i)]["Temp"])
+                self.temps[0,i,0] = float(payload_dict["Data"][str(i)]["Temp"])
+                self.temps[0,i,1] = float(payload_dict["Data"][str(i)]["Time"])
+            print(self.temps[0,i-6:i,:])
             # split_data = my_data.split(",")
             # corrected_data = []
             # for i in range(len(split_data)):
@@ -253,6 +258,7 @@ class Device(object):
                 self.start_predict =True
         # The config is passed in the payload of the message. In this example,
         # the server sends a serialized JSON string.
+        return
 
 def parse_command_line_args():
     """Parse command line arguments."""
