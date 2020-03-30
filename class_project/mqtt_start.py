@@ -212,7 +212,7 @@ def main():
     mqtt_telemetry_topic = '/devices/{}/events'.format(args.device_id)
 
     # This is the topic that the device will receive configuration updates on.
-    mqtt_config_topic = '/devices/{}/config'.format(args.device_id)
+    mqtt_config_topic = '/devices/{}/commands/#'.format(args.device_id)
 
     # Wait up to 5 seconds for the device to connect.
     device.wait_for_connection(5)
@@ -227,11 +227,13 @@ def main():
         time.sleep(1)
         print("Send Message:")
         usrInputMsg=input()
+        print("Data Type:")
+        data_type=input()
         print("To?:")
         usrInputAddr=input()
         # Report the device's temperature to the server by serializing it
         # as a JSON string.
-        payload = json.dumps({'Type': 1, 'Data' : usrInputMsg, 'To' : usrInputAddr, 'Time' : 0})
+        payload = json.dumps({'Type': int(data_type), 'Data' : usrInputMsg, 'To' : usrInputAddr, 'Time' : 0})
         print('Publishing payload', payload)
         client.publish(mqtt_telemetry_topic, payload, qos=1)
         # Send events every second.

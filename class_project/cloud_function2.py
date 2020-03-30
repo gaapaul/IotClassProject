@@ -29,7 +29,7 @@ def echo_pubsub1(event,context):
     projectId = event['attributes']['projectId']
     payload = json.loads(message)
     #gather info and send message to device
-    if(payload['Type'] == 1): #data
+    if(payload['Type'] == 0): #data
         recipient = payload['To']
         my_message = message
         send_message(projectId,deviceRegistryLocation,deviceRegistryId,recipient,str(my_message))

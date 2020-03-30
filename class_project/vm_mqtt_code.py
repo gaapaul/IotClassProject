@@ -14,21 +14,7 @@
 #Code edited from end to end example Github link below
 #https://github.com/GoogleCloudPlatform/python-docs-samples.git
 
-"""Sample device that consumes configuration from Google Cloud IoT.
-This example represents a simple device with a temperature sensor and a fan
-(simulated with software). When the device's fan is turned on, its temperature
-decreases by one degree per second, and when the device's fan is turned off,
-its temperature increases by one degree per second.
-
-Every second, the device publishes its temperature reading to Google Cloud IoT
-Core. The server meanwhile receives these temperature readings, and decides
-whether to re-configure the device to turn its fan on or off. The server will
-instruct the device to turn the fan on when the device's temperature exceeds 10
-degrees, and to turn it off when the device's temperature is less than 0
-degrees. In a real system, one could use the cloud to compute the optimal
-thresholds for turning on and off the fan, but for illustrative purposes we use
-a simple threshold model.
-
+"""
 To connect the device you must have downloaded Google's CA root certificates,
 and a copy of your private key file. See cloud.google.com/iot for instructions
 on how to do this. Run this script with the corresponding algorithm flag.
@@ -39,12 +25,7 @@ on how to do this. Run this script with the corresponding algorithm flag.
       --device_id=my-device-id \
       --private_key_file=rsa_private.pem \
       --algorithm=RS256
-
-With a single server, you can run multiple instances of the device with
-different device ids, and the server will distinguish them. Try creating a few
-devices and running them all at the same time.
 """
-
 import argparse
 import datetime
 import json
@@ -240,25 +221,15 @@ class Device(object):
         index = 0
         """Callback when the device receives a message on a subscription."""
         payload = message.payload.decode('utf-8')
-        #print(payload["Data"]["Index"])
-        #print('Received message \'{}\' on topic \'{}\' with Qos {}'.format(
-            #base64.b64decode(message.payload), message.topic, str(message.qos)))
-
-        # The device will receive its latest config when it subscribes to the
-        # config topic. If there is no configuration for the device, the device
-        # will receive a config with an empty payload.
-        #if not payload:
-        #    return
         payload_dict = json.loads(payload)
         #print(payload["Data"]["Index"])
-	#print(payload)
+	   #print(payload)
         #print("Type: "+str(payload_dict["Type"]))
         #print(payload_dict["Data"])
         if(payload_dict["Type"] == 0): #It's Data 
-#            print(payload_dict["Data"]["Index"])
-
+            #print(payload_dict["Data"]["Index"])
             for i in payload_dict["Data"]["Index"]:
-#                print(payload_dict["Data"][str(i)]["Temp"])
+                #print(payload_dict["Data"][str(i)]["Temp"])
                 self.temps[0,i,0] = float(payload_dict["Data"][str(i)]["Temp"])
                 self.temps[0,i,1] = float(payload_dict["Data"][str(i)]["Time"])
             print(self.temps[0,i-12:i,:])
@@ -277,9 +248,6 @@ class Device(object):
                 self.save_data = False
                 self.temps = np.zeros((1,360,2)) #two features air and out temp
                 self.reset = True
-
-        # The config is passed in the payload of the message. In this example,
-        # the server sends a serialized JSON string.
         return
 
 def parse_command_line_args():
@@ -376,7 +344,7 @@ def main():
     mqtt_telemetry_topic = '/devices/{}/events'.format(args.device_id)
 
     # This is the topic that the device will receive configuration updates on.
-    mqtt_config_topic = '/devices/{}/config'.format(args.device_id)
+    mqtt_config_topic = '/devices/{}/commands/#'.format(args.device_id)
 
     # Wait up to 5 seconds for the device to connect.
     device.wait_for_connection(5)
@@ -388,17 +356,6 @@ def main():
     # Update and publish temperature readings at a rate of one per second.
     start_time = time.time()
     while(True):
-        # In an actual device, this would read the device's sensors. Here,
-        # you update the temperature based on whether the fan is on.
-        # Report the device's temperature to the server by serializing it
-        # as a JSON string.
-        #payload = json.dumps({'MessageSent': usrInputMsg, 'To' : usrInputAddr, 'From' : args.device_id})
-        # print('Publishing payload', payload)
-        # client.publish(mqtt_telemetry_topic, payload, qos=1)
-        # Send events every second.
-        # time.sleep(1)
-        #  val_data = np.zeros((360,1,2))
-
         time.sleep(.1)
         if(device.read_predict_state()): #Got config update to turn lamp on.
             start_time = time.time()
@@ -416,10 +373,10 @@ def main():
             stop_payload = json.dumps({"Type": 1, "Data" : stop_time, "Time" : str(time.time() - start_time)[:4], "To" : "test-dev"})
             client.publish(mqtt_telemetry_topic, stop_payload, qos=1)
             device.stop_predict()
-#            storage_client = storage.Client(credentials=credentials, project='turnkey-banner-265721')
- #           bucket = storage_client.get_bucket('iot_bucket_453')
-  #          blob = bucket.blob('yhat_file')
-   #         blob.upload_from_filename("yhat.txt")
+            #storage_client = storage.Client(credentials=credentials, project='turnkey-banner-265721')
+            #bucket = storage_client.get_bucket('iot_bucket_453')
+            #blob = bucket.blob('yhat_file')
+            #blob.upload_from_filename("yhat.txt")
             #print("Waiting To Start")
         if(device.read_data_state()):
             device.stop_save_data_state()
