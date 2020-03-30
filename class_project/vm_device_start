@@ -1,0 +1,1 @@
+python3 vm_mqtt_code.py --project_id=turnkey-banner-265721 --registry_id=tour-registry --device_id=test-dev2 --private_key_file=rsa_private.pem --algorithm=RS256 --mqtt_bridge_port=8883

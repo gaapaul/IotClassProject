@@ -180,7 +180,7 @@ class Device(object):
         print(inv_yhat_out)
         stop_time = 360
         for i in range(0, len(inv_yhat_out)):
-            if(inv_yhat_out[i] > 90):
+            if(inv_yhat_out[i] > 98):
                 stop_time = self.temps[0,i,1]
                 break
                 print("Stop Time is: "+str(stop_time))
