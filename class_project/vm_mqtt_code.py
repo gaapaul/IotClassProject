@@ -313,11 +313,11 @@ def dir_path(string):
 
 def main():
     args = parse_command_line_args()
-    # with open('turnkey-banner-265721-da1327341af6.json', 'r') as json_file:
-    #     data = json.load(json_file)
-    # credentials = ServiceAccountCredentials.from_json_keyfile_dict(
-    #     data
-    # )
+    with open('turnkey-banner-265721-da1327341af6.json', 'r') as json_file:
+        data = json.load(json_file)
+    credentials = ServiceAccountCredentials.from_json_keyfile_dict(
+        data
+    )
 
     data_log = 'run0.txt'
     read_log = 'data_2025100.csv' 
