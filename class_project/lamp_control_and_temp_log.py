@@ -324,7 +324,7 @@ def main():
                             predict_payload = json.dumps({"Type": 1, "Data" :"Predict", "Time" : str(time.time() - start_time)[:4], "To" : "test-dev2"})
                             client.publish(mqtt_telemetry_topic, predict_payload, qos=1)
                             start_predict_flag = 2
-                    time.sleep(.1)
+                    time.sleep(.25)
                     #print(json.load(paylod))
             write_file.close()        
             done_payload = json.dumps({"Type": 1, "Data" :"Done State", "Time" : str(time.time() - start_time)[:4], "To" : "test-dev"})

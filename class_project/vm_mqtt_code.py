@@ -251,8 +251,8 @@ class Device(object):
                 self.temps = np.zeros((1,360,2)) #two features air and out temp
                 self.reset = True
             if( "Run_ID"  in payload_dict["Data"]):
-                self.run_ID = payload_dict["Data"]["Run_ID"]
-                print("ID set to {}".format(self.run_ID))
+                self.Run_ID = payload_dict["Data"]["Run_ID"]
+                print("ID set to {}".format(self.Run_ID))
         return
 
 def parse_command_line_args():
@@ -313,11 +313,11 @@ def dir_path(string):
 
 def main():
     args = parse_command_line_args()
-    with open('turnkey-banner-265721-da1327341af6.json', 'r') as json_file:
-        data = json.load(json_file)
-    credentials = ServiceAccountCredentials.from_json_keyfile_dict(
-        data
-    )
+    # with open('turnkey-banner-265721-da1327341af6.json', 'r') as json_file:
+    #     data = json.load(json_file)
+    # credentials = ServiceAccountCredentials.from_json_keyfile_dict(
+    #     data
+    # )
 
     data_log = 'run0.txt'
     read_log = 'data_2025100.csv' 
@@ -388,13 +388,7 @@ def main():
             client.publish(mqtt_telemetry_topic, done_payload, qos=1)
             done_payload = json.dumps({"Type": 1, "Data" : "Wait State", "Time" : str(time.time() - start_time), "To" : "test-dev2"})
             client.publish(mqtt_telemetry_topic, done_payload, qos=1)
-            with open('turnkey-banner-265721-da1327341af6.json', 'r') as json_file:
-                data = json.load(json_file)
-
-            credentials = ServiceAccountCredentials.from_json_keyfile_dict(
-                data
-            )
-            storage_client = storage.Client(credentials=credentials, project='turnkey-banner-265721')
+            storage_client = storage.Client(credentials=credentials, project='turnkey-banner-26a5721')
             bucket = storage_client.get_bucket('iot_bucket_453')
             blob = bucket.blob('yhat_vm_file_{}'.format(device.get_Run_ID()))
             blob.upload_from_filename("yhat_vm.txt")
