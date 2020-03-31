@@ -62,7 +62,7 @@ def log_data(request):
     BLOB_NAME = 'test-blob'
     BLOB_STR = '{"blob": "some json"}'
 
-    uppipload_blob(BUCKET_NAME, BLOB_STR, BLOB_NAME)
+    upload_blob(BUCKET_NAME, BLOB_STR, BLOB_NAME)
     return
 
 def download_blob(bucket_name, source_blob_name, destination_file_name):
@@ -112,9 +112,12 @@ class Device(object):
         self.save_data = False
         self.reset = False
         self.temps = np.zeros((1,360,2)) #two features air and out temp
+        self.Run_ID = ""
     def log_air_temp(self,index,air,time):
         self.temps[0,index,0] = air
         self.temps[0,index,1] = time
+    def read_air_temp(self):
+        return self.temps[0,:,0]
     def reset_false(self):
         self.reset = False
     def read_reset(self):
@@ -131,6 +134,8 @@ class Device(object):
         return self.save_data
     def stop_save_data_state(self):
         self.save_data = False
+    def get_Run_ID(self):
+        return self.Run_ID
     # def write_data_to_np(self):
     #     for i in range(0, len(self.store_data[:])):
     #         for j in range(0, len(sself.tore_data[0][:]),2):
@@ -229,25 +234,25 @@ class Device(object):
         if(payload_dict["Type"] == 0): #It's Data 
             #print(payload_dict["Data"]["Index"])
             for i in payload_dict["Data"]["Index"]:
-                #print(payload_dict["Data"][str(i)]["Temp"])
+                print(payload_dict["Data"][str(i)]["Temp"])
                 self.temps[0,i,0] = float(payload_dict["Data"][str(i)]["Temp"])
                 self.temps[0,i,1] = float(payload_dict["Data"][str(i)]["Time"])
-            print(self.temps[0,i-12:i,:])
 
         if(payload_dict["Type"] == 1):
             if(payload_dict["Data"] == "Predict"):
                 self.start_predict = True
                 print("Starting Prediction")
-        if(payload_dict["Type"] == 1):
             if(payload_dict["Data"] == "Done"):
                 self.save_data = True
                 print("Time to save Data")
-        if(payload_dict["Type"] == 1):
             if(payload_dict["Data"] == "Reset"):
                 self.start_predict = False
                 self.save_data = False
                 self.temps = np.zeros((1,360,2)) #two features air and out temp
                 self.reset = True
+            if( "Run_ID"  in payload_dict["Data"]):
+                self.run_ID = payload_dict["Data"]["Run_ID"]
+                print("ID set to {}".format(self.run_ID))
         return
 
 def parse_command_line_args():
@@ -308,7 +313,11 @@ def dir_path(string):
 
 def main():
     args = parse_command_line_args()
-
+    with open('turnkey-banner-265721-da1327341af6.json', 'r') as json_file:
+        data = json.load(json_file)
+    credentials = ServiceAccountCredentials.from_json_keyfile_dict(
+        data
+    )
 
     data_log = 'run0.txt'
     read_log = 'data_2025100.csv' 
@@ -373,11 +382,6 @@ def main():
             stop_payload = json.dumps({"Type": 1, "Data" : stop_time, "Time" : str(time.time() - start_time)[:4], "To" : "test-dev"})
             client.publish(mqtt_telemetry_topic, stop_payload, qos=1)
             device.stop_predict()
-            #storage_client = storage.Client(credentials=credentials, project='turnkey-banner-265721')
-            #bucket = storage_client.get_bucket('iot_bucket_453')
-            #blob = bucket.blob('yhat_file')
-            #blob.upload_from_filename("yhat.txt")
-            #print("Waiting To Start")
         if(device.read_data_state()):
             device.stop_save_data_state()
             done_payload = json.dumps({"Type": 1, "Data" : "Thanks for Data", "Time" : str(time.time() - start_time), "To" : "test-dev"})
@@ -392,12 +396,21 @@ def main():
             )
             storage_client = storage.Client(credentials=credentials, project='turnkey-banner-265721')
             bucket = storage_client.get_bucket('iot_bucket_453')
-            blob = bucket.blob('yhat_vm-file')
+            blob = bucket.blob('yhat_vm_file_{}'.format(device.get_Run_ID()))
             blob.upload_from_filename("yhat_vm.txt")
             print("Return Prediction to User")
-            payload = json.dumps({"Type": 0, "Data" : prediction.tolist(), "Time" : str(time.time() - start_time)[:4], 'To' : "test-dev3"})            
+            payload = json.dumps({"Type": 0, "Data" : prediction.tolist(), "Time" : str(time.time() - start_time)[:4], 'To' : "test-dev3"}) 
+            client.publish(mqtt_telemetry_topic, payload, qos=1)
+            air_temp = device.read_air_temp()
+            time.sleep(1)
+            payload = json.dumps({"Type": 1, "Data" : air_temp.tolist(), "Time" : str(time.time() - start_time)[:4], 'To' : "test-dev3"}) 
             client.publish(mqtt_telemetry_topic, payload, qos=1)
             print("Waiting for data to Store")
+            storage_client = storage.Client(credentials=credentials, project='turnkey-banner-265721')
+            bucket = storage_client.get_bucket('iot_bucket_453')
+            blob = bucket.blob('yhat_vm_file')
+            blob.upload_from_filename("yhat_vm.txt")
+            print("Saved File")
         if(device.read_reset()):
             print("Reset")
             payload = json.dumps({"Type": 1, "Data" : "Wait State", "Time" : str(time.time() - start_time), "To" : "test-dev2"})

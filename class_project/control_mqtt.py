@@ -89,6 +89,7 @@ class Device(object):
     def __init__(self):
         self.connected = False
         self.prediction = np.zeros(360)
+        self.air_temp = np.zeros(360)
     def wait_for_connection(self, timeout):
         """Wait for the device to become connected."""
         total_time = 0
@@ -100,6 +101,8 @@ class Device(object):
             raise RuntimeError('Could not connect to MQTT bridge.')
     def get_prediction_data(self):
         return self.prediction
+    def get_air_temp_data(self):
+        return self.air_temp
     def on_connect(self, unused_client, unused_userdata, unused_flags, rc):
         """Callback for when a device connects."""
         print('Connection Result:', error_str(rc))
@@ -131,6 +134,8 @@ class Device(object):
             print(payload_dict["Data"])
             self.prediction = payload_dict["Data"]
             print(self.prediction)
+        if(payload_dict["Type"] == 1):
+            self.air_temp   = payload_dict["Data"]
         if not payload:
             return
 
@@ -242,9 +247,19 @@ def main():
         data_type=input()
         if(data_type == "Plot"):
             prediction = device.get_prediction_data()
-            print(prediction)
+            air_temp_data = device.get_air_temp_data()
             pyplot.plot(prediction)
+            pyplot.plot(air_temp_data)
             pyplot.show()
+        elif(data_type == "ID"):
+            Run_ID_dict = {"Run_ID" : usrInputMsg}
+            payload = json.dumps({'Type': 1, 'Data' : Run_ID_dict, 'To' : "test-dev2", 'Time' : 0})
+            print('Publishing payload', payload)
+            client.publish(mqtt_telemetry_topic, payload, qos=1)
+        elif(data_type == "Start"):
+            payload = json.dumps({'Type': 1, 'Data' : "Start Temp", 'To' : "test-dev", 'Time' : 0})
+            print('Publishing payload', payload)
+            client.publish(mqtt_telemetry_topic, payload, qos=1)    
         else:
             print("To?:")
             usrInputAddr=input()
@@ -252,7 +267,6 @@ def main():
             # as a JSON string.
             payload = json.dumps({'Type': int(data_type), 'Data' : usrInputMsg, 'To' : usrInputAddr, 'Time' : 0})
             print('Publishing payload', payload)
-            payload = json.dumps({'Type': 1, 'Data' : usrInputMsg, 'To' : usrInputAddr, 'Time' : 0})
             client.publish(mqtt_telemetry_topic, payload, qos=1)
 
 

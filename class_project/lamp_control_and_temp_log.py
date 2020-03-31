@@ -286,7 +286,7 @@ def main():
                 time.sleep(1)
                 payload_data = {}
                 index_data = []
-                for i in range(0,len(lines)-10,10):
+                for i in range(0,len(lines),10):
                     if(device.read_reset()):
                         break
                     line = lines[i] 
@@ -304,13 +304,14 @@ def main():
                         lamp_off = json.dumps({"Type": 1, "Data" :"Lamp is off", "Time" : str(time.time() - start_time)[:4], "To" : "test-dev2"})
                         client.publish(mqtt_telemetry_topic, lamp_off, qos=1)
                     last_temp = float(line_data_split[1])
+                    print("Time: "+str(line_data_split[0]))
                     if(device.read_stop_time() <= float(line_data_split[0])):
                         device.stop_temp()
                         if(device.read_stop_time == float(line_data_split[0])):
                             print("Stopped at: "+str(line_data_split[0]))
                         #break
-                    print("Time: "+str(line_data_split[0]))
                     payload_data.update(payload_data_new)
+                    index += 1
                     if(index % 12 == 0):
                         payload = json.dumps({"Type": 0, "Data" : payload_data, "Time" : str(time.time() - start_time)[:4], 'To' : "test-dev2"})
                         client.publish(mqtt_telemetry_topic, payload, qos=1)
@@ -323,7 +324,6 @@ def main():
                             predict_payload = json.dumps({"Type": 1, "Data" :"Predict", "Time" : str(time.time() - start_time)[:4], "To" : "test-dev2"})
                             client.publish(mqtt_telemetry_topic, predict_payload, qos=1)
                             start_predict_flag = 2
-                    index += 1
                     time.sleep(.1)
                     #print(json.load(paylod))
             write_file.close()        
